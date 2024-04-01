@@ -1,22 +1,23 @@
-from qanything_kernel.utils.general_utils import *
-from typing import List, Union, Callable
-from qanything_kernel.configs.model_config import UPLOAD_ROOT_PATH, SENTENCE_SIZE, ZH_TITLE_ENHANCE
-from langchain.docstore.document import Document
-from qanything_kernel.utils.loader.my_recursive_url_loader import MyRecursiveUrlLoader
-from langchain.document_loaders import UnstructuredFileLoader, TextLoader
-from langchain.document_loaders import UnstructuredWordDocumentLoader
-from langchain.document_loaders import UnstructuredExcelLoader
-from langchain.document_loaders import UnstructuredEmailLoader
-from langchain.document_loaders import UnstructuredPowerPointLoader
-from qanything_kernel.utils.loader.csv_loader import CSVLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from qanything_kernel.utils.custom_log import debug_logger, qa_logger
-from qanything_kernel.utils.splitter import ChineseTextSplitter
-from qanything_kernel.utils.loader import UnstructuredPaddleImageLoader, UnstructuredPaddlePDFLoader
-from qanything_kernel.utils.splitter import zh_title_enhance
-from sanic.request import File
-import pandas as pd
 import os
+from typing import List, Union, Callable
+
+import pandas as pd
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.docstore.document import Document
+from langchain_community.document_loaders import UnstructuredEmailLoader
+from langchain_community.document_loaders import UnstructuredFileLoader, TextLoader
+from langchain_community.document_loaders import UnstructuredPowerPointLoader
+from langchain_community.document_loaders import UnstructuredWordDocumentLoader
+from sanic.request import File
+
+from qanything_kernel.configs.model_config import UPLOAD_ROOT_PATH, SENTENCE_SIZE, ZH_TITLE_ENHANCE
+from qanything_kernel.utils.custom_log import debug_logger
+from qanything_kernel.utils.general_utils import *
+from qanything_kernel.utils.loader import UnstructuredPaddleImageLoader, UnstructuredPaddlePDFLoader
+from qanything_kernel.utils.loader.csv_loader import CSVLoader
+from qanything_kernel.utils.loader.my_recursive_url_loader import MyRecursiveUrlLoader
+from qanything_kernel.utils.splitter import ChineseTextSplitter
+from qanything_kernel.utils.splitter import zh_title_enhance
 
 text_splitter = RecursiveCharacterTextSplitter(
     separators=["\n", ".", "。", "!", "！", "?", "？", "；", ";", "……", "…", "、", "，", ",", " "],
@@ -26,7 +27,8 @@ text_splitter = RecursiveCharacterTextSplitter(
 
 
 class LocalFile:
-    def __init__(self, user_id, kb_id, file: Union[File, str], file_id, file_name, embedding, is_url=False, in_milvus=False):
+    def __init__(self, user_id, kb_id, file: Union[File, str], file_id, file_name, embedding, is_url=False,
+                 in_milvus=False):
         self.user_id = user_id
         self.kb_id = kb_id
         self.file_id = file_id

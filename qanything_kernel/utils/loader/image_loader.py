@@ -1,11 +1,11 @@
 """Loader that loads image files."""
-from typing import List, Callable
-
-from langchain.document_loaders.unstructured import UnstructuredFileLoader
-import os
-from typing import Union, Any
-import cv2
 import base64
+import os
+from typing import List, Callable
+from typing import Union, Any
+
+import cv2
+from langchain_community.document_loaders.unstructured import UnstructuredFileLoader
 
 
 class UnstructuredPaddleImageLoader(UnstructuredFileLoader):

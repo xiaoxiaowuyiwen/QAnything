@@ -4,30 +4,30 @@ import json
 import logging
 import multiprocessing as mp
 import os
-import psutil
 import queue
-import string
 import signal
+import string
 import sys
-import traceback
-import time
 import threading
+import time
+import traceback
+from collections import OrderedDict
+from datetime import datetime
+from typing import List, Tuple, Dict, Any
+from urllib.parse import unquote
 
+import psutil
 import sanic
 from sanic import Sanic, Request
 from sanic.response import ResponseStream
-from collections import OrderedDict
-from datetime import datetime
 from transformers import AutoTokenizer
 from tritonclient.utils import InferenceServerException
-from typing import List, Tuple, Dict, Optional, Any
-from urllib.parse import unquote
 
 WORKER_VERSION = "llm_v1.0.0_231221_fc212a"
 
 sys.path.append("./")
 from modeling_qwen import QwenTritonModel
-from utils import log_timestamp, CODES
+from utils import CODES
 
 logging.getLogger().setLevel(logging.INFO)
 global_counter = 0
@@ -35,7 +35,7 @@ model_semaphore = None
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--host", type=str, default="0.0.0.0")
-parser.add_argument("--port", type=int, default=36001)
+parser.add_argument("--port", type=int, default=36001)  # sanic服务的端口
 parser.add_argument(
     "--model-path",
     type=str,
@@ -47,7 +47,7 @@ parser.add_argument(
     type=str,
     default="localhost:10001",
     help="url of tritonserver",
-)
+)  # Triton Server的地址
 parser.add_argument(
     "--limit-model-concurrency",
     type=int,
@@ -56,11 +56,12 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+# 实例化模型，QwenTritonModel负责与TritonServer的实际交互
 model = QwenTritonModel(model_url=args.model_url)
 tokenizer = AutoTokenizer.from_pretrained(args.model_path, trust_remote_code=True, do_lower_case=False,
-                                            strip_accents=False)
+                                          strip_accents=False)
 
-app = Sanic("LLMService")
+app = Sanic("LLMService")  # 定义了一个Sanic实例，名字为LLMService
 
 
 def signal_handler(signum, frame) -> None:
@@ -88,7 +89,7 @@ def is_process_running(pid: int) -> bool:
         return True
 
 
-def generator_llm(params: OrderedDict) -> str:
+def generator_llm(params: OrderedDict) -> str:  # 生成器
     def insert_error(resp_data: dict, error_enum) -> None:
         resp_data["text"] = error_enum.desc
         resp_data["error_code"] = error_enum.code
@@ -164,7 +165,8 @@ def generator_llm(params: OrderedDict) -> str:
     }
 
     result_queue = queue.Queue()
-    proc = threading.Thread(target=model.chat_stream, args=(query, result_queue), kwargs=infer_decode_args)
+    proc = threading.Thread(target=model.chat_stream, args=(query, result_queue),
+                            kwargs=infer_decode_args)  # 调用chat_stream方法
     proc.start()
     proc_pid = threading.get_native_id()
     request_id = "{}_{}".format(request_id, proc_pid)
@@ -277,6 +279,7 @@ class WorkerStatus(object):
 
 status = WorkerStatus(args.limit_model_concurrency)
 
+
 async def release_model_semaphore():
     global model_semaphore, global_counter
     global_counter -= 1
@@ -312,7 +315,7 @@ async def check_input(request: Request):
 
 
 @app.post("/worker_generate_stream")
-async def generate_stream(request: Request):
+async def generate_stream(request: Request):  # 生成流式响应，是一个很重要的接口
     global model_semaphore, global_counter
     global_counter += 1
     params = request.json
@@ -321,17 +324,17 @@ async def generate_stream(request: Request):
     if model_semaphore is None:
         limit_model_concurrency = args.limit_model_concurrency
         model_semaphore = asyncio.Semaphore(limit_model_concurrency)
-    await model_semaphore.acquire()
+    await model_semaphore.acquire()  # 获取信号量，限制并发请求的数量
 
     async def generate_answer(response):
-        for chunk in generator_llm(params):
+        for chunk in generator_llm(params):  # 生成器
             await response.write(chunk)
             await asyncio.sleep(0.001)
         await release_model_semaphore()
         await response.eof()
         # await asyncio.sleep(0.001)
 
-    response = ResponseStream(generate_answer, content_type='text/event-stream')
+    response = ResponseStream(generate_answer, content_type='text/event-stream')  # 生成流式响应
     # response.headers['Cache-Control'] = 'no-cache'
     return response
 
@@ -347,4 +350,5 @@ async def api_health_check(request: Request):
 
 
 if __name__ == "__main__":
+    # 启动sanic服务
     app.run(host=args.host, port=args.port, workers=4, debug=False)

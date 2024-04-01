@@ -1,8 +1,8 @@
 ## Reference to: https://github.com/hiyouga/LLaMA-Factory/blob/main/src/llmtuner/data/template.py
 
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
-from dataclasses import dataclass
 import logging as logger
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 
 if TYPE_CHECKING:
     from transformers import PreTrainedTokenizer
@@ -10,7 +10,6 @@ if TYPE_CHECKING:
 
 @dataclass
 class Template:
-
     prefix: List[Union[str, Dict[str, str]]]
     prompt: List[Union[str, Dict[str, str]]]
     sep: List[Union[str, Dict[str, str]]]
@@ -18,12 +17,12 @@ class Template:
     use_history: bool
 
     def encode_oneturn(
-        self,
-        tokenizer: "PreTrainedTokenizer",
-        query: str,
-        resp: str,
-        history: Optional[List[Tuple[str, str]]] = None,
-        prefix: Optional[str] = None
+            self,
+            tokenizer: "PreTrainedTokenizer",
+            query: str,
+            resp: str,
+            history: Optional[List[Tuple[str, str]]] = None,
+            prefix: Optional[str] = None
     ) -> Tuple[List[int], List[int]]:
         r"""
         Returns a single pair of token ids representing prompt and response respectively.
@@ -37,12 +36,12 @@ class Template:
         return prompt_ids, encoded_pairs[-1][1]
 
     def encode_multiturn(
-        self,
-        tokenizer: "PreTrainedTokenizer",
-        query: str,
-        resp: str,
-        history: Optional[List[Tuple[str, str]]] = None,
-        prefix: Optional[str] = None
+            self,
+            tokenizer: "PreTrainedTokenizer",
+            query: str,
+            resp: str,
+            history: Optional[List[Tuple[str, str]]] = None,
+            prefix: Optional[str] = None
     ) -> List[Tuple[List[int], List[int]]]:
         r"""
         Returns multiple pairs of token ids representing prompts and responses respectively.
@@ -52,28 +51,28 @@ class Template:
         return encoded_pairs
 
     def _format(
-        self,
-        query: str,
-        resp: str,
-        history: Optional[List[Tuple[str, str]]] = None,
-        prefix: Optional[str] = None
+            self,
+            query: str,
+            resp: str,
+            history: Optional[List[Tuple[str, str]]] = None,
+            prefix: Optional[str] = None
     ) -> Tuple[List[Union[str, Dict[str, str]]], List[Tuple[str, str]]]:
         r"""
         Aligns inputs to a special format.
         """
-        prefix = [prefix] if prefix else self.prefix # use prefix if provided
+        prefix = [prefix] if prefix else self.prefix  # use prefix if provided
         history = history if (history and self.use_history) else []
         history = history + [(query, resp)]
         return prefix, history
 
     def _get_special_ids(
-        self,
-        tokenizer: "PreTrainedTokenizer"
+            self,
+            tokenizer: "PreTrainedTokenizer"
     ) -> Tuple[List[int], List[int]]:
         if tokenizer.bos_token_id:
             bos_ids = [tokenizer.bos_token_id]
         else:
-            bos_ids = [] # bos token is optional
+            bos_ids = []  # bos token is optional
 
         if tokenizer.eos_token_id:
             eos_ids = [tokenizer.eos_token_id]
@@ -83,10 +82,10 @@ class Template:
         return bos_ids, eos_ids
 
     def _encode(
-        self,
-        tokenizer: "PreTrainedTokenizer",
-        prefix: List[Union[str, Dict[str, str]]],
-        history: List[Tuple[str, str]]
+            self,
+            tokenizer: "PreTrainedTokenizer",
+            prefix: List[Union[str, Dict[str, str]]],
+            history: List[Tuple[str, str]]
     ) -> List[Tuple[List[int], List[int]]]:
         r"""
         Encodes formatted inputs to pairs of token ids.
@@ -108,15 +107,16 @@ class Template:
         return encoded_pairs
 
     def _convert_inputs_to_ids(
-        self,
-        tokenizer: "PreTrainedTokenizer",
-        context: List[Union[str, Dict[str, str]]],
-        query: Optional[str] = ""
+            self,
+            tokenizer: "PreTrainedTokenizer",
+            context: List[Union[str, Dict[str, str]]],
+            query: Optional[str] = ""
     ) -> List[int]:
         r"""
         Converts context to token ids.
         """
-        if hasattr(tokenizer, "tokenizer"): # for tiktoken tokenizer (Qwen)
+        # 这个函数的目的就是把context里面的字符串转换成token id
+        if hasattr(tokenizer, "tokenizer"):  # for tiktoken tokenizer (Qwen)
             kwargs = dict(allowed_special="all")
         else:
             kwargs = dict(add_special_tokens=False)
@@ -137,12 +137,12 @@ templates: Dict[str, Template] = {}
 
 
 def register_template(
-    name: str,
-    prefix: List[Union[str, Dict[str, str]]],
-    prompt: List[Union[str, Dict[str, str]]],
-    sep: List[Union[str, Dict[str, str]]],
-    stop_words: List[str],
-    use_history: bool
+        name: str,
+        prefix: List[Union[str, Dict[str, str]]],
+        prompt: List[Union[str, Dict[str, str]]],
+        sep: List[Union[str, Dict[str, str]]],
+        stop_words: List[str],
+        use_history: bool
 ) -> None:
     template_class = Template
     templates[name] = template_class(
@@ -155,13 +155,13 @@ def register_template(
 
 
 def get_template_and_fix_tokenizer(
-    name: str,
-    tokenizer: "PreTrainedTokenizer"
+        name: str,
+        tokenizer: "PreTrainedTokenizer"
 ) -> Template:
     template = templates.get(name, None)
     assert template is not None, "Template {} does not exist.".format(name)
 
-    if tokenizer.eos_token_id is None: # inplace method
+    if tokenizer.eos_token_id is None:  # inplace method
         if len(template.stop_words):
             tokenizer.eos_token = template.stop_words[0]
         else:
@@ -191,7 +191,6 @@ register_template(
     stop_words=[],
     use_history=True
 )
-
 
 register_template(
     name="chatml",

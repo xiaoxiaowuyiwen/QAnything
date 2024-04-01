@@ -1,24 +1,25 @@
 """Loader that loads image files."""
-from typing import List, Callable
-
-from langchain.document_loaders.unstructured import UnstructuredFileLoader
-from unstructured.partition.text import partition_text
-import os
-import fitz
-from tqdm import tqdm
-from typing import Union, Any
-import numpy as np
 import base64
+import os
+from typing import List, Callable
+from typing import Union, Any
+
+import fitz
+import numpy as np
+from langchain_community.document_loaders.unstructured import UnstructuredFileLoader
+from tqdm import tqdm
+from unstructured.partition.text import partition_text
 
 
 class UnstructuredPaddlePDFLoader(UnstructuredFileLoader):
     """Loader that uses unstructured to load image files, such as PNGs and JPGs."""
+
     def __init__(
-        self,
-        file_path: Union[str, List[str]],
-        ocr_engine: Callable,
-        mode: str = "single",
-        **unstructured_kwargs: Any,
+            self,
+            file_path: Union[str, List[str]],
+            ocr_engine: Callable,
+            mode: str = "single",
+            **unstructured_kwargs: Any,
     ):
         """Initialize with file path."""
         self.ocr_engine = ocr_engine

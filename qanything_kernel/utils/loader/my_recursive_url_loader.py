@@ -2,19 +2,18 @@ from typing import Iterator, List, Optional, Set
 from urllib.parse import urljoin, urldefrag
 
 import requests
-
-from langchain.docstore.document import Document
-from langchain.document_loaders.base import BaseLoader
+from langchain_community.docstore.document import Document
+from langchain_community.document_loaders.base import BaseLoader
 
 
 class MyRecursiveUrlLoader(BaseLoader):
     """Loads all child links from a given url."""
 
     def __init__(
-        self,
-        url: str,
-        exclude_dirs: Optional[str] = None,
-        max_depth: int = -1
+            self,
+            url: str,
+            exclude_dirs: Optional[str] = None,
+            max_depth: int = -1
     ) -> None:
         """Initialize with URL to crawl and any subdirectories to exclude.
 
@@ -28,7 +27,7 @@ class MyRecursiveUrlLoader(BaseLoader):
         self.max_depth = max_depth
 
     def get_child_links_recursive(
-        self, url: str, depth: int, visited: Optional[Set[str]] = None
+            self, url: str, depth: int, visited: Optional[Set[str]] = None
     ) -> Iterator[Document]:
         """Recursively get all child links starting with the path of the input URL.
 
@@ -54,7 +53,7 @@ class MyRecursiveUrlLoader(BaseLoader):
 
         # Exclude the links that start with any of the excluded directories
         if self.exclude_dirs and any(
-            url.startswith(exclude_dir) for exclude_dir in self.exclude_dirs
+                url.startswith(exclude_dir) for exclude_dir in self.exclude_dirs
         ):
             return visited
 
@@ -78,7 +77,7 @@ class MyRecursiveUrlLoader(BaseLoader):
                 yield from WebBaseLoader(link).load()
                 # If the link is a directory (w/ children) then visit it
                 if link.endswith("/"):
-                    yield from self.get_child_links_recursive(link, depth+1, visited)
+                    yield from self.get_child_links_recursive(link, depth + 1, visited)
 
         return visited
 
