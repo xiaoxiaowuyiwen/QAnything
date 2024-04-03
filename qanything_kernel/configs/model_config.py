@@ -2,6 +2,7 @@ import os
 import logging
 import uuid
 from dotenv import load_dotenv
+
 load_dotenv()
 
 # LOG_FORMAT = "%(levelname) -5s %(asctime)s" "-1d: %(message)s"
@@ -67,21 +68,24 @@ MILVUS_PASSWORD = ''
 MILVUS_DB_NAME = ''
 
 MYSQL_HOST_LOCAL = 'mysql-container-local'
-MYSQL_HOST_ONLINE = 'mysql-container-local'
+MYSQL_HOST_ONLINE = 'localhost'
 MYSQL_PORT = 3306
-MYSQL_USER = 'root'
-MYSQL_PASSWORD = '123456'
+MYSQL_USER = 'car2024'
+MYSQL_PASSWORD = 'WyW#02052015'
 MYSQL_DATABASE = 'qanything'
 
 llm_api_serve_model = os.getenv('LLM_API_SERVE_MODEL')
+
 llm_api_serve_port = os.getenv('LLM_API_SERVE_PORT')
+llm_api_serve_port = 3666
 rerank_port = os.getenv('RERANK_PORT')
+rerank_port = 3777
 embed_port = os.getenv('EMBED_PORT')
+embed_port = 3888
 
 print("llm_api_serve_port:", llm_api_serve_port)
 print("rerank_port:", rerank_port)
 print("embed_port:", embed_port)
-
 
 LOCAL_LLM_SERVICE_URL = f"localhost:{llm_api_serve_port}"
 LOCAL_LLM_MODEL_NAME = llm_api_serve_model

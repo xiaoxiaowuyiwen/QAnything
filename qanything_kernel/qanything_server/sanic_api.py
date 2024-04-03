@@ -38,9 +38,9 @@ app = Sanic("QAnything")
 # 设置请求体最大为 400MB
 app.config.REQUEST_MAX_SIZE = 400 * 1024 * 1024
 
-
 # 将 /static 路径映射到 static 文件夹
 app.static('/static', './static')
+
 
 # CORS中间件，用于在每个响应中添加必要的头信息
 @app.middleware("response")
@@ -87,4 +87,4 @@ app.add_route(delete_knowledge_base, "/api/local_doc_qa/delete_knowledge_base", 
 app.add_route(rename_knowledge_base, "/api/local_doc_qa/rename_knowledge_base", methods=['POST'])  # tags=["重命名知识库"] 
 
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8777, workers=10, access_log=False)
+    app.run(host='0.0.0.0', port=8777, workers=1, access_log=False)
