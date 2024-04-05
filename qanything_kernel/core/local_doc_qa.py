@@ -1,21 +1,24 @@
+import logging
+import time
+import traceback
+from typing import List
+
+import requests
+from langchain.schema import Document
+
 from qanything_kernel.configs.model_config import VECTOR_SEARCH_TOP_K, CHUNK_SIZE, VECTOR_SEARCH_SCORE_THRESHOLD, \
     PROMPT_TEMPLATE, STREAMING
-from typing import List
-from qanything_kernel.connector.embedding.embedding_for_online import YouDaoEmbeddings
-from qanything_kernel.connector.embedding.embedding_for_local import YouDaoLocalEmbeddings
-import time
-from qanything_kernel.connector.llm import OpenAILLM, ZiyueLLM
-from langchain.schema import Document
-from qanything_kernel.connector.database.mysql.mysql_client import KnowledgeBaseManager
 from qanything_kernel.connector.database.milvus.milvus_client import MilvusClient
-from qanything_kernel.utils.custom_log import debug_logger, qa_logger
-from .local_file import LocalFile
+from qanything_kernel.connector.database.mysql.mysql_client import KnowledgeBaseManager
+from qanything_kernel.connector.embedding.embedding_for_local import YouDaoLocalEmbeddings
+from qanything_kernel.connector.embedding.embedding_for_online import YouDaoEmbeddings
+from qanything_kernel.connector.llm import OpenAILLM, ZiyueLLM
+from qanything_kernel.utils.custom_log import debug_logger
 from qanything_kernel.utils.general_utils import get_time
-import requests
-import traceback
-import logging
+from .local_file import LocalFile
 
 logging.basicConfig(level=logging.INFO)
+
 
 def _embeddings_hash(self):
     return hash(self.model_name)
@@ -28,7 +31,7 @@ YouDaoEmbeddings.__hash__ = _embeddings_hash
 class LocalDocQA:
     def __init__(self):
         self.llm: object = None
-        self.embeddings: object = None
+        self.embedder: object = None
         self.top_k: int = VECTOR_SEARCH_TOP_K
         self.chunk_size: int = CHUNK_SIZE
         self.chunk_conent: bool = True
@@ -46,11 +49,11 @@ class LocalDocQA:
 
     def init_cfg(self, mode='local'):
         self.mode = mode
-        self.embeddings = YouDaoLocalEmbeddings()
+        self.embedder = YouDaoLocalEmbeddings()  # todo：此处需要处理一下，暂时无法部署本地模型，可以用YouDaoEmbeddings，线上接入
         if self.mode == 'local':
-            self.llm: ZiyueLLM = ZiyueLLM()
+            self.llm: ZiyueLLM = ZiyueLLM()  # todo：这里也需要处理一下，暂时无法部署本地模型
         else:
-            self.llm: OpenAILLM = OpenAILLM()
+            self.llm: OpenAILLM = OpenAILLM()  # todo: 暂时无法连接到OpenAI API
         self.milvus_summary = KnowledgeBaseManager(self.mode)
 
     def create_milvus_collection(self, user_id, kb_id, kb_name):
@@ -68,53 +71,72 @@ class LocalDocQA:
         return milvus_kb
 
     async def insert_files_to_milvus(self, user_id, kb_id, local_files: List[LocalFile]):
+        """
+        有2个地方调用了这个函数，一个是upload_weblink，一个是upload_files
+        该函数的主要流程是，针对每个文件，逐步执行以下操作：
+        1. 将文件分割成多个doc，每个doc包含一个page_content
+        2. 为每个doc生成embedding
+        3. 将doc和embedding插入到milvus中
+        :param user_id:
+        :param kb_id:
+        :param local_files:
+        :return:
+        """
         debug_logger.info(f'insert_files_to_milvus: {kb_id}')
         milvus_kv = self.match_milvus_kb(user_id, [kb_id])
         assert milvus_kv is not None
         success_list = []
         failed_list = []
 
-        for local_file in local_files:
+        for local_file in local_files:  # 逐个文件处理
             start = time.time()
             try:
-                local_file.split_file_to_docs(self.get_ocr_result)
-                content_length = sum([len(doc.page_content) for doc in local_file.docs])
+                local_file.split_file_to_docs(self.get_ocr_result)  # 将文件分割成doc
+                content_length = sum([len(doc.page_content) for doc in local_file.docs])  # 计算文本长度
             except Exception as e:
                 error_info = f'split error: {traceback.format_exc()}'
                 debug_logger.error(error_info)
-                self.milvus_summary.update_file_status(local_file.file_id, status='red')
+                self.milvus_summary.update_file_status(local_file.file_id, status='red')  # 更新文件状态为红色
                 failed_list.append(local_file)
                 continue
             end = time.time()
+
             self.milvus_summary.update_content_length(local_file.file_id, content_length)
             debug_logger.info(f'split time: {end - start} {len(local_file.docs)}')
+
             start = time.time()
             try:
+                # 为doc创建embedding，生成的embedding存储在local_file.embs中，由下面的insert_files函数插入到milvus中
                 local_file.create_embedding()
             except Exception as e:
                 error_info = f'embedding error: {traceback.format_exc()}'
                 debug_logger.error(error_info)
-                self.milvus_summary.update_file_status(local_file.file_id, status='red')
+                self.milvus_summary.update_file_status(local_file.file_id, status='red')  # 更新文件状态为红色
                 failed_list.append(local_file)
                 continue
             end = time.time()
             debug_logger.info(f'embedding time: {end - start} {len(local_file.embs)}')
 
             self.milvus_summary.update_chunk_size(local_file.file_id, len(local_file.docs))
+
+            # 将doc和embedding插入到milvus中
             ret = await milvus_kv.insert_files(local_file.file_id, local_file.file_name, local_file.file_path,
                                                local_file.docs, local_file.embs)
             insert_time = time.time()
             debug_logger.info(f'insert time: {insert_time - end}')
             if ret:
+                # 如果插入成功，更新文件状态为绿色
                 self.milvus_summary.update_file_status(local_file.file_id, status='green')
                 success_list.append(local_file)
             else:
+                # 如果插入失败，更新文件状态为黄色
                 self.milvus_summary.update_file_status(local_file.file_id, status='yellow')
                 failed_list.append(local_file)
+
         debug_logger.info(
             f"insert_to_milvus: success num: {len(success_list)}, failed num: {len(failed_list)}")
 
-    def deduplicate_documents(self, source_docs):
+    def _deduplicate_documents(self, source_docs):
         unique_docs = set()
         deduplicated_docs = []
         for doc in source_docs:
@@ -123,12 +145,12 @@ class LocalDocQA:
                 deduplicated_docs.append(doc)
         return deduplicated_docs
 
-    def get_source_documents(self, queries, milvus_kb, cosine_thresh=None, top_k=None):
+    def _get_source_documents(self, queries, milvus_kb, cosine_thresh=None, top_k=None):
         milvus_kb: MilvusClient
         if not top_k:
             top_k = self.top_k
         source_documents = []
-        embs = self.embeddings._get_len_safe_embeddings(queries)
+        embs = self.embedder._get_len_safe_embeddings(queries)
         t1 = time.time()
         batch_result = milvus_kb.search_emb_async(embs=embs, top_k=top_k)
         t2 = time.time()
@@ -136,17 +158,17 @@ class LocalDocQA:
         for query, query_docs in zip(queries, batch_result):
             for doc in query_docs:
                 doc.metadata['retrieval_query'] = query  # 添加查询到文档的元数据中
-                doc.metadata['embed_version'] = self.embeddings.embed_version
+                doc.metadata['embed_version'] = self.embedder.embed_version
                 source_documents.append(doc)
         if cosine_thresh:
             source_documents = [item for item in source_documents if float(item.metadata['score']) > cosine_thresh]
 
         return source_documents
 
-    def reprocess_source_documents(self, query: str,
-                                   source_docs: List[Document],
-                                   history: List[str],
-                                   prompt_template: str) -> List[Document]:
+    def _reprocess_source_documents(self, query: str,
+                                    source_docs: List[Document],
+                                    history: List[str],
+                                    prompt_template: str) -> List[Document]:
         # 组装prompt,根据max_token
         query_token_num = self.llm.num_tokens_from_messages([query])
         history_token_num = self.llm.num_tokens_from_messages([x for sublist in history for x in sublist])
@@ -184,15 +206,15 @@ class LocalDocQA:
         debug_logger.info(f"new_source_docs token nums: {self.llm.num_tokens_from_docs(new_source_docs)}")
         return new_source_docs
 
-    def generate_prompt(self, query, source_docs, prompt_template):
+    def _generate_prompt(self, query, source_docs, prompt_template):
         context = "\n".join([doc.page_content for doc in source_docs])
         prompt = prompt_template.replace("{question}", query).replace("{context}", context)
         return prompt
 
-    def rerank_documents(self, query, source_documents):
-        return self.rerank_documents_for_local(query, source_documents)
+    def _rerank_documents(self, query, source_documents):
+        return self._rerank_documents_for_local(query, source_documents)
 
-    def rerank_documents_for_local(self, query, source_documents):
+    def _rerank_documents_for_local(self, query, source_documents):
         if len(query) > 300:  # tokens数量超过300时不使用local rerank
             return source_documents
         try:
@@ -216,21 +238,21 @@ class LocalDocQA:
             chat_history = []
         retrieval_queries = [query]
 
-        source_documents = self.get_source_documents(retrieval_queries, milvus_kb)
+        source_documents = self._get_source_documents(retrieval_queries, milvus_kb)
 
-        deduplicated_docs = self.deduplicate_documents(source_documents)
+        deduplicated_docs = self._deduplicate_documents(source_documents)
         retrieval_documents = sorted(deduplicated_docs, key=lambda x: x.metadata['score'], reverse=True)
         if rerank and len(retrieval_documents) > 1:
             debug_logger.info(f"use rerank, rerank docs num: {len(retrieval_documents)}")
-            retrieval_documents = self.rerank_documents(query, retrieval_documents)
+            retrieval_documents = self._rerank_documents(query, retrieval_documents)
 
-        source_documents = self.reprocess_source_documents(query=query,
-                                                           source_docs=retrieval_documents,
-                                                           history=chat_history,
-                                                           prompt_template=PROMPT_TEMPLATE)
-        prompt = self.generate_prompt(query=query,
-                                      source_docs=source_documents,
-                                      prompt_template=PROMPT_TEMPLATE)
+        source_documents = self._reprocess_source_documents(query=query,
+                                                            source_docs=retrieval_documents,
+                                                            history=chat_history,
+                                                            prompt_template=PROMPT_TEMPLATE)
+        prompt = self._generate_prompt(query=query,
+                                       source_docs=source_documents,
+                                       prompt_template=PROMPT_TEMPLATE)
         t1 = time.time()
         for answer_result in self.llm.generatorAnswer(prompt=prompt,
                                                       history=chat_history,

@@ -1,16 +1,19 @@
+import json
+import os
 from abc import ABC
-from langchain.llms.base import LLM
+from collections import OrderedDict
 from typing import Optional, List
+
+import requests
+import tiktoken
+from dotenv import load_dotenv
+from langchain.llms.base import LLM
+from requests.exceptions import RequestException
+
 from qanything_kernel.connector.llm.base import (BaseAnswer,
                                                  AnswerResult)
-import json
-import requests
-from requests.exceptions import RequestException
-from collections import OrderedDict
-import tiktoken
-from qanything_kernel.utils.custom_log import debug_logger, qa_logger
-import os
-from dotenv import load_dotenv
+from qanything_kernel.utils.custom_log import debug_logger
+
 load_dotenv()
 
 
@@ -26,7 +29,7 @@ class ZiyueLLM(BaseAnswer, LLM, ABC):
     top_k: int = 4
     repetition_penalty: float = 1.2
     check_in: int = 0
-    url: str = "http://0.0.0.0:36001/worker_generate_stream"
+    url: str = "http://0.0.0.0:36001/worker_generate_stream"  # 这个看起来是fastchat/serve/controller.py里的一个接口
 
     history: List[List[str]] = []
     history_len: int = 2
@@ -47,10 +50,7 @@ class ZiyueLLM(BaseAnswer, LLM, ABC):
         self.history_len = history_len
 
     def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
-        response = self.chat(
-            prompt,
-            history=[]
-        )
+        response = self.chat(prompt, history=[])
         return response
 
     def num_tokens_from_messages(self, message_texts):
@@ -67,9 +67,7 @@ class ZiyueLLM(BaseAnswer, LLM, ABC):
             num_tokens += len(encoding.encode(doc.page_content, disallowed_special=()))
         return num_tokens
 
-    def generatorAnswer(self, prompt: str,
-                        history=None,
-                        streaming: bool = False):
+    def generatorAnswer(self, prompt: str, history=None, streaming: bool = False):
         if history is None:
             history = []
         print("self.history_len:", self.history_len)
@@ -87,7 +85,7 @@ class ZiyueLLM(BaseAnswer, LLM, ABC):
                     if not chunk_str.startswith("[DONE]"):
                         chunk_js = json.loads(chunk_str)
                         complete_answer += chunk_js["answer"]
-                
+
                 history[-1] = [prompt, complete_answer]
                 answer_result = AnswerResult()
                 answer_result.history = history
@@ -125,7 +123,7 @@ class ZiyueLLM(BaseAnswer, LLM, ABC):
         response = self.retry_requests(data_raw=data_raw, headers={"User-Agent": "fastchat Client"})
 
         return response
-    
+
     def stream_chat(self, prompt, history):
         print('stream chat', flush=True)
         hist_messages = OrderedDict()
@@ -148,14 +146,8 @@ class ZiyueLLM(BaseAnswer, LLM, ABC):
         for res in self.retry_stream_requests(data_raw=data_raw, headers={"User-Agent": "fastchat Client"}):
             yield res
 
-    def retry_stream_requests(self, data_raw, headers):
-        response = requests.post(
-            self.url,
-            headers=headers,
-            json=data_raw,
-            timeout=60,
-            stream=True
-        )
+    def retry_stream_requests(self, data_raw, headers):  # 流式请求
+        response = requests.post(self.url, headers=headers, json=data_raw, timeout=60, stream=True)
         try:
             response.raise_for_status()
             for chunk in response.iter_lines(decode_unicode=False, delimiter=b"\n\n"):
@@ -163,8 +155,8 @@ class ZiyueLLM(BaseAnswer, LLM, ABC):
                 if chunk:
                     data = chunk.decode('utf-8')[6:]
                     data = json.loads(data)
-                    if data["error_code"] == 0:         
-                        text = data['text']           
+                    if data["error_code"] == 0:
+                        text = data['text']
                     else:
                         text = data["text"] + f" (error_code: {data['error_code']})"
                         print(f"stream error: {text}")
@@ -176,13 +168,7 @@ class ZiyueLLM(BaseAnswer, LLM, ABC):
         yield f"data: [DONE]\n\n"
 
     def retry_requests(self, data_raw, headers):
-        response = requests.post(
-            self.url,
-            headers=headers,
-            json=data_raw,
-            timeout=60,
-            stream=True
-        )
+        response = requests.post(self.url, headers=headers, json=data_raw, timeout=60, stream=True)
         try:
             response.raise_for_status()
             final_response = ""
@@ -190,8 +176,8 @@ class ZiyueLLM(BaseAnswer, LLM, ABC):
                 if chunk:
                     data = chunk.decode('utf-8')[6:]
                     data = json.loads(data)
-                    if data["error_code"] == 0:         
-                        text = data['text']           
+                    if data["error_code"] == 0:
+                        text = data['text']
                     else:
                         text = data["text"] + f" (error_code: {data['error_code']})"
                         print(f"stream error: {text}")

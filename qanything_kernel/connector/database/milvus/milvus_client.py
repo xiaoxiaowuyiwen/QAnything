@@ -1,17 +1,20 @@
-from pymilvus import connections, FieldSchema, CollectionSchema, DataType, Collection, utility, \
-    Partition
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import asyncio
-from functools import partial
-import time
 import copy
-from datetime import datetime
-from qanything_kernel.configs.model_config import MILVUS_HOST_LOCAL, MILVUS_HOST_ONLINE, MILVUS_PORT, MILVUS_USER, MILVUS_PASSWORD, MILVUS_DB_NAME, CHUNK_SIZE, VECTOR_SEARCH_TOP_K
-from qanything_kernel.utils.custom_log import debug_logger
-from langchain.docstore.document import Document
 import math
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from functools import partial
 from itertools import groupby
 from typing import List
+
+from langchain.docstore.document import Document
+from pymilvus import connections, FieldSchema, CollectionSchema, DataType, Collection, utility, \
+    Partition
+
+from qanything_kernel.configs.model_config import MILVUS_HOST_LOCAL, MILVUS_HOST_ONLINE, MILVUS_PORT, MILVUS_USER, \
+    MILVUS_PASSWORD, MILVUS_DB_NAME, CHUNK_SIZE, VECTOR_SEARCH_TOP_K
+from qanything_kernel.utils.custom_log import debug_logger
 
 
 class MilvusFailed(Exception):
@@ -43,7 +46,8 @@ class MilvusClient:
         else:
             self.create_params = {"metric_type": "L2", "index_type": "GPU_IVF_FLAT", "params": {"nlist": 2048}}
         self.last_init_ts = time.time() - 100  # 减去100保证最初的init不会被拒绝
-        self.init()
+
+        self.init()  # 初始化，建立连接
 
     @property
     def fields(self):
@@ -137,19 +141,29 @@ class MilvusClient:
         return future.result()
 
     async def insert_files(self, file_id, file_name, file_path, docs, embs, batch_size=1000):
+        """
+        插入文件，将文件的内容和embedding插入到milvus中
+        :param file_id: 文件id
+        :param file_name: 文件名
+        :param file_path: 文件路径
+        :param docs: 文件的所有文档
+        :param embs: 文件的所有embedding
+        :param batch_size:
+        :return:
+        """
         debug_logger.info(f'now inser_file {file_name}')
         now = datetime.now()
         timestamp = now.strftime("%Y%m%d%H%M")
         loop = asyncio.get_running_loop()
         contents = [doc.page_content for doc in docs]
         num_docs = len(docs)
-        for batch_start in range(0, num_docs, batch_size):
+        for batch_start in range(0, num_docs, batch_size):  # 每次插入batch_size个文档
             batch_end = min(batch_start + batch_size, num_docs)
             data = [[] for _ in range(len(self.sess.schema))]
 
             for idx in range(batch_start, batch_end):
-                cont = contents[idx]
-                emb = embs[idx]
+                cont = contents[idx]  # 文档内容
+                emb = embs[idx]  # 文档embedding
                 chunk_id = f'{file_id}_{idx}'
                 data[0].append(chunk_id)
                 data[1].append(file_id)
@@ -162,8 +176,7 @@ class MilvusClient:
             # 执行插入操作
             try:
                 debug_logger.info('Inserting into Milvus...')
-                mr = await loop.run_in_executor(
-                    self.executor, partial(self.partitions[0].insert, data=data))
+                mr = await loop.run_in_executor(self.executor, partial(self.partitions[0].insert, data=data))
                 debug_logger.info(f'{file_name} {mr}')
             except Exception as e:
                 debug_logger.error(f'Milvus insert file_id:{file_id}, file_name:{file_name} failed: {e}')

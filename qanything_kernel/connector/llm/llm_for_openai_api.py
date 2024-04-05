@@ -1,13 +1,14 @@
-from abc import ABC
-import tiktoken
+import json
+import logging
 import os
+import sys
+from abc import ABC
+from typing import List
+
+import tiktoken
 from dotenv import load_dotenv
 from openai import OpenAI
-from typing import Optional, List
-import sys
-import json
-import requests
-import logging
+
 sys.path.append("../../../")
 from qanything_kernel.connector.llm.base import (BaseAnswer, AnswerResult)
 
@@ -31,7 +32,7 @@ class OpenAILLM(BaseAnswer, ABC):
     offcut_token: int = 50
     truncate_len: int = 50
     temperature: float = 0
-    top_p: float = 1.0 # top_p must be (0,1]
+    top_p: float = 1.0  # top_p must be (0,1]
     stop_words: str = None
     history: List[List[str]] = []
     history_len: int = 2
@@ -75,7 +76,7 @@ class OpenAILLM(BaseAnswer, ABC):
             "gpt-4-32k-0613",
             "gpt-4-32k",
             # "gpt-4-1106-preview",
-            }:
+        }:
             tokens_per_message = 3
             tokens_per_name = 1
         elif model == "gpt-3.5-turbo-0301":
@@ -83,7 +84,8 @@ class OpenAILLM(BaseAnswer, ABC):
             tokens_per_name = -1  # 如果有名字，角色会被省略
         elif "gpt-3.5-turbo" in model:
             # 对于 gpt-3.5-turbo 模型可能会有更新，此处返回假设为 gpt-3.5-turbo-0613 的token数量，并给出警告
-            logging.info("Warning: gpt-3.5-turbo may update over time. Returning num tokens assuming gpt-3.5-turbo-0613.")
+            logging.info(
+                "Warning: gpt-3.5-turbo may update over time. Returning num tokens assuming gpt-3.5-turbo-0613.")
             return self.num_tokens_from_messages(messages, model="gpt-3.5-turbo-0613")
         elif "gpt-4" in model:
             # 对于 gpt-4 模型可能会有更新，此处返回假设为 gpt-4-0613 的token数量，并给出警告
@@ -95,7 +97,7 @@ class OpenAILLM(BaseAnswer, ABC):
             raise NotImplementedError(
                 f"""num_tokens_from_messages() is not implemented for model {model}. See https://github.com/openai/openai-python/blob/main/chatml.md for information on how messages are converted to tokens."""
             )
-            
+
         num_tokens = 0
         # 计算每条消息的token数
         for message in messages:
@@ -109,14 +111,13 @@ class OpenAILLM(BaseAnswer, ABC):
                 num_tokens += len(encoding.encode(message))
             else:
                 NotImplementedError(
-                f"""num_tokens_from_messages() is not implemented message type {type(message)}. """
-            )
+                    f"""num_tokens_from_messages() is not implemented message type {type(message)}. """
+                )
 
         num_tokens += 3  # 每条回复都以助手为首
         return num_tokens
 
     def num_tokens_from_docs(self, docs):
-        
         # 尝试获取模型的编码
         try:
             encoding = tiktoken.encoding_for_model(self.model)
@@ -130,7 +131,7 @@ class OpenAILLM(BaseAnswer, ABC):
             num_tokens += len(encoding.encode(doc.page_content, disallowed_special=()))
         return num_tokens
 
-    def _call(self, prompt: str, history: List[List[str]], streaming: bool=False) -> str:
+    def _call(self, prompt: str, history: List[List[str]], streaming: bool = False) -> str:
         messages = []
         for pair in history:
             question, answer = pair
@@ -140,9 +141,8 @@ class OpenAILLM(BaseAnswer, ABC):
         logging.info(messages)
 
         try:
-
-            if streaming:
-                response = self.client.chat.completions.create(
+            if streaming:  # 流式输出
+                response = self.client.chat.completions.create(  # 此处调用openai的API
                     model=self.model,
                     messages=messages,
                     stream=True,
@@ -156,14 +156,14 @@ class OpenAILLM(BaseAnswer, ABC):
                     if not isinstance(event, dict):
                         event = event.model_dump()
 
-                    if isinstance(event['choices'], List) and len(event['choices']) > 0 :
+                    if isinstance(event['choices'], List) and len(event['choices']) > 0:
                         event_text = event["choices"][0]['delta']['content']
                         if isinstance(event_text, str) and event_text != "":
                             # logging.info(f"[debug] event_text = [{event_text}]")
                             delta = {'answer': event_text}
                             yield "data: " + json.dumps(delta, ensure_ascii=False)
 
-            else:
+            else:  # 非流式输出
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,
@@ -173,42 +173,35 @@ class OpenAILLM(BaseAnswer, ABC):
                     top_p=self.top_p,
                     stop=[self.stop_words] if self.stop_words is not None else None,
                 )
-                
                 # logging.info(f"[debug] response.choices = [{response.choices}]")
                 event_text = response.choices[0].message.content if response.choices else ""
                 delta = {'answer': event_text}
                 yield "data: " + json.dumps(delta, ensure_ascii=False)
-
         except Exception as e:
             logging.info(f"Error calling OpenAI API: {e}")
             delta = {'answer': f"{e}"}
             yield "data: " + json.dumps(delta, ensure_ascii=False)
-
         finally:
             # logging.info("[debug] try-finally")
             yield f"data: [DONE]\n\n"
 
-    def generatorAnswer(self, prompt: str,
-                        history: List[List[str]] = [],
-                        streaming: bool = False) -> AnswerResult:
-
+    def generatorAnswer(self, prompt: str, history: List[List[str]] = [], streaming: bool = False) -> AnswerResult:
         if history is None or len(history) == 0:
             history = [[]]
         logging.info(f"history_len: {self.history_len}")
         logging.info(f"prompt: {prompt}")
         logging.info(f"prompt tokens: {self.num_tokens_from_messages([{'content': prompt}])}")
         logging.info(f"streaming: {streaming}")
-                
+
         response = self._call(prompt, history[:-1], streaming)
         complete_answer = ""
         for response_text in response:
-
             if response_text:
                 chunk_str = response_text[6:]
                 if not chunk_str.startswith("[DONE]"):
                     chunk_js = json.loads(chunk_str)
                     complete_answer += chunk_js["answer"]
-                    
+
             history[-1] = [prompt, complete_answer]
             answer_result = AnswerResult()
             answer_result.history = history
@@ -218,7 +211,6 @@ class OpenAILLM(BaseAnswer, ABC):
 
 
 if __name__ == "__main__":
-
     llm = OpenAILLM()
     streaming = True
     chat_history = []
@@ -232,12 +224,9 @@ if __name__ == "__main__":
 请根据上述参考信息回答我的问题或回复我的指令。前面的参考信息可能有用，也可能没用，你需要从我给出的参考信息中选出与我的问题最相关的那些，来为你的回答提供依据。回答一定要忠于原文，简洁但不丢信息，不要胡乱编造。我的问题或指令是什么语种，你就用什么语种回复,
 你的回复："""
     final_result = ""
-    for answer_result in llm.generatorAnswer(prompt=prompt,
-                                                      history=chat_history,
-                                                      streaming=streaming):
+    for answer_result in llm.generatorAnswer(prompt=prompt, history=chat_history, streaming=streaming):
         resp = answer_result.llm_output["answer"]
         if "DONE" not in resp:
             final_result += json.loads(resp[6:])["answer"]
         logging.info(resp)
-
     logging.info(f"final_result = {final_result}")

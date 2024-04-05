@@ -1,18 +1,20 @@
-from qanything_kernel.core.local_file import LocalFile
-from qanything_kernel.core.local_doc_qa import LocalDocQA
-from qanything_kernel.utils.general_utils import *
-from qanything_kernel.utils.custom_log import debug_logger, qa_logger
+import asyncio
+import json
+import os
+import re
+import urllib.parse
+import uuid
+from datetime import datetime
+
+from sanic import request
 from sanic.response import ResponseStream
 from sanic.response import json as sanic_json
 from sanic.response import text as sanic_text
-from sanic import request
-import uuid
-import json
-import asyncio
-import urllib.parse
-import re
-from datetime import datetime
-import os
+
+from qanything_kernel.core.local_doc_qa import LocalDocQA
+from qanything_kernel.core.local_file import LocalFile
+from qanything_kernel.utils.custom_log import debug_logger, qa_logger
+from qanything_kernel.utils.general_utils import *
 
 __all__ = ["new_knowledge_base", "upload_files", "list_kbs", "list_docs", "delete_knowledge_base", "delete_docs",
            "rename_knowledge_base", "get_total_status", "clean_files_by_status", "upload_weblink", "local_doc_chat",
@@ -66,7 +68,7 @@ async def upload_weblink(req: request):
         data = [{"file_id": file_id, "file_name": url, "status": status, "bytes": file_size, "timestamp": timestamp}]
     else:
         file_id, msg = local_doc_qa.milvus_summary.add_file(user_id, kb_id, url, timestamp)
-        local_file = LocalFile(user_id, kb_id, url, file_id, url, local_doc_qa.embeddings, is_url=True)
+        local_file = LocalFile(user_id, kb_id, url, file_id, url, local_doc_qa.embedder, is_url=True)
         data = [{"file_id": file_id, "file_name": url, "status": "gray", "bytes": 0, "timestamp": timestamp}]
         asyncio.create_task(local_doc_qa.insert_files_to_milvus(user_id, kb_id, [local_file]))
         msg = "success，后台正在飞速上传文件，请耐心等待"
@@ -97,7 +99,7 @@ async def upload_files(req: request):
         return sanic_json({"code": 2001, "msg": msg, "data": [{}]})
 
     data = []
-    local_files = []
+    local_files = []  # 用来保存LocalFile对象，支持多个文件上传
     file_names = []
     for file in files:
         if isinstance(file, str):
@@ -126,13 +128,14 @@ async def upload_files(req: request):
             continue
         file_id, msg = local_doc_qa.milvus_summary.add_file(user_id, kb_id, file_name, timestamp)
         debug_logger.info(f"{file_name}, {file_id}, {msg}")
-        local_file = LocalFile(user_id, kb_id, file, file_id, file_name, local_doc_qa.embeddings)
+        local_file = LocalFile(user_id, kb_id, file, file_id, file_name, local_doc_qa.embedder)
         local_files.append(local_file)
         local_doc_qa.milvus_summary.update_file_size(file_id, len(local_file.file_content))
         data.append(
             {"file_id": file_id, "file_name": file_name, "status": "gray", "bytes": len(local_file.file_content),
              "timestamp": timestamp})
 
+    # 异步插入milvus，避免阻塞，但是这里更合理的是使用专门的线程池来处理
     asyncio.create_task(local_doc_qa.insert_files_to_milvus(user_id, kb_id, local_files))
     if exist_file_names:
         msg = f'warning，当前的mode是soft，无法上传同名文件{exist_file_names}，如果想强制上传同名文件，请设置mode：strong'

@@ -52,9 +52,7 @@ class MyRecursiveUrlLoader(BaseLoader):
             return None
 
         # Exclude the links that start with any of the excluded directories
-        if self.exclude_dirs and any(
-                url.startswith(exclude_dir) for exclude_dir in self.exclude_dirs
-        ):
+        if self.exclude_dirs and any(url.startswith(exclude_dir) for exclude_dir in self.exclude_dirs):
             return visited
 
         yield from WebBaseLoader(web_path=url).load()

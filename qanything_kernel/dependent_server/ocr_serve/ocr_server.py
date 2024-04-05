@@ -46,6 +46,7 @@ async def ocr_request(request):
 
     # 无文件上传，返回错误
     if not img_file:
+        logger.error("No file was uploaded.")
         return response.json({'error': 'No file was uploaded.'}, status=400)
 
     # 调用 PaddleOCR 进行识别
