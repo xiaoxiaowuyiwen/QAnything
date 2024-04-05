@@ -8,9 +8,7 @@ import fitz
 import numpy as np
 from langchain_community.document_loaders.unstructured import UnstructuredFileLoader
 from tqdm import tqdm
-
-
-# from unstructured.partition.text import partition_text
+from unstructured.partition.text import partition_text
 
 
 class UnstructuredPaddlePDFLoader(UnstructuredFileLoader):

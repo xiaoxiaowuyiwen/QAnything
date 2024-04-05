@@ -1,11 +1,12 @@
-from sanic import Sanic, response
-from paddleocr import PaddleOCR
 import base64
-import numpy as np
-from sanic.worker.manager import WorkerManager
 import logging
 import os
+
+import numpy as np
 from dotenv import load_dotenv
+from paddleocr import PaddleOCR
+from sanic import Sanic, response
+from sanic.worker.manager import WorkerManager
 
 load_dotenv()
 
@@ -19,7 +20,6 @@ formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(messag
 handler = logging.StreamHandler()
 handler.setFormatter(formatter)
 logger.addHandler(handler)
-
 
 logger.info(f"OCR_USE_GPU parameter is set to {use_gpu}")
 
@@ -58,4 +58,4 @@ async def ocr_request(request):
 
 # 启动服务
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8010, workers=4, access_log=False)
+    app.run(host="0.0.0.0", port=8010, workers=1, access_log=False)

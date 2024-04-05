@@ -1,6 +1,5 @@
 import os
-import logging
-import uuid
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -67,7 +66,7 @@ MILVUS_USER = ''
 MILVUS_PASSWORD = ''
 MILVUS_DB_NAME = ''
 
-MYSQL_HOST_LOCAL = 'mysql-container-local'
+MYSQL_HOST_LOCAL = 'localhost'
 MYSQL_HOST_ONLINE = 'localhost'
 MYSQL_PORT = 3306
 MYSQL_USER = 'car2024'
