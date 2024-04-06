@@ -12,7 +12,7 @@ from langchain.docstore.document import Document
 from pymilvus import FieldSchema, CollectionSchema, DataType, Collection, utility, \
     Partition, connections
 
-from configs import model_config
+from qanything_kernel.configs import model_config
 from qanything_kernel.utils.custom_log import debug_logger
 
 
