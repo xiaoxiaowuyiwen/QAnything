@@ -9,11 +9,10 @@ from itertools import groupby
 from typing import List
 
 from langchain.docstore.document import Document
-from pymilvus import connections, FieldSchema, CollectionSchema, DataType, Collection, utility, \
-    Partition
+from pymilvus import FieldSchema, CollectionSchema, DataType, Collection, utility, \
+    Partition, connections
 
-from qanything_kernel.configs.model_config import MILVUS_HOST_LOCAL, MILVUS_HOST_ONLINE, MILVUS_PORT, MILVUS_USER, \
-    MILVUS_PASSWORD, MILVUS_DB_NAME, CHUNK_SIZE, VECTOR_SEARCH_TOP_K
+from configs import model_config
 from qanything_kernel.utils.custom_log import debug_logger
 
 
@@ -27,19 +26,19 @@ class MilvusClient:
         self.user_id = user_id
         self.kb_ids = kb_ids
         if mode == 'local':
-            self.host = MILVUS_HOST_LOCAL
+            self.host = model_config.MILVUS_HOST_LOCAL
         else:
-            self.host = MILVUS_HOST_ONLINE
-        self.port = MILVUS_PORT
-        self.user = MILVUS_USER
-        self.password = MILVUS_PASSWORD
-        self.db_name = MILVUS_DB_NAME
+            self.host = model_config.MILVUS_HOST_ONLINE
+        self.port = model_config.MILVUS_PORT
+        self.user = model_config.MILVUS_USER
+        self.password = model_config.MILVUS_PASSWORD
+        self.db_name = model_config.MILVUS_DB_NAME
         self.client_timeout = client_timeout
         self.threshold = threshold
         self.sess: Collection = None
         self.partitions: List[Partition] = []
         self.executor = ThreadPoolExecutor(max_workers=10)
-        self.top_k = VECTOR_SEARCH_TOP_K
+        self.top_k = model_config.VECTOR_SEARCH_TOP_K
         self.search_params = {"metric_type": "L2", "params": {"nprobe": 256}}
         if mode == 'local':
             self.create_params = {"metric_type": "L2", "index_type": "IVF_FLAT", "params": {"nlist": 2048}}
@@ -97,8 +96,11 @@ class MilvusClient:
         try:
             # 这里需要改成serverless的连接方式，相关文档：
             # https://github.com/zilliztech/cloud-vectordb-examples/blob/master/python/hello_zilliz_vectordb_serverless.py
+            '''
             connections.connect(host=self.host, port=self.port, user=self.user,
                                 password=self.password, db_name=self.db_name)  # timeout=3 [cannot set]
+            '''
+            connections.connect("default", uri=model_config.MILVUS_URI, token=model_config.MILVUS_TOKEN)
             if utility.has_collection(self.user_id):
                 self.sess = Collection(self.user_id)
                 debug_logger.info(f'collection {self.user_id} exists')
@@ -250,7 +252,7 @@ class MilvusClient:
                 for expand_index in [current_chunk_id + k, current_chunk_id - k]:
                     if expand_index in group_file_chunk_num:
                         merge_content = group_chunk_map[expand_index]
-                        if docs_len + len(merge_content) > CHUNK_SIZE:
+                        if docs_len + len(merge_content) > model_config.CHUNK_SIZE:
                             break_flag = True
                             break
                         else:
