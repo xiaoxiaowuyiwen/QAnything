@@ -27,9 +27,6 @@ class YouDaoEmbeddings:
         pass
 
     def _get_embedding(self, queries):
-
-        queries = "123"
-
         curtime = int(time.time())
         salt = str(curtime)
 
@@ -73,7 +70,7 @@ class YouDaoEmbeddings:
         print('embedding data length:', sum(len(s) for s in queries), flush=True)
         headers = {"content-type": "application/json"}
         url = self.base_url
-        url = f'{url}?appKey={model_config.ONLINE_EMBED_APP_ID}&curtime={curtime}&salt={salt}&sign={sign}&signType=v3&q={combined_q}'
+        url = f'{url}?appKey={model_config.ONLINE_EMBED_APP_ID}&curtime={curtime}&salt={salt}&sign={sign}&signType=v3&q={queries}'
         req = urllib.request.Request(url=url, headers=headers, data=json.dumps(data).encode("utf-8"))
         try:
             f = urllib.request.urlopen(req)
