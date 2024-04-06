@@ -1,7 +1,8 @@
 import logging
-from concurrent_log_handler import ConcurrentRotatingFileHandler
-import time
 import os
+import time
+
+from concurrent_log_handler import ConcurrentRotatingFileHandler
 
 
 class CustomConcurrentRotatingFileHandler(ConcurrentRotatingFileHandler):
@@ -58,7 +59,7 @@ process_type = 'MainProcess' if 'SANIC_WORKER_NAME' not in os.environ else os.en
 
 # 创建一个带有自定义字段的格式器
 formatter = logging.Formatter(
-    f"%(asctime)s - [PID: %(process)d][{process_type}] - [Function: %(funcName)s] - %(filename)s - %(lineno)d - %(levelname)s - %(message)s")
+    f"%(asctime)s - [PID: %(process)d][{process_type}] - [Function: %(funcName)s] - %(filename)s : %(lineno)d - %(levelname)s - %(message)s")
 
 # formatter = logging.Formatter("%(asctime)s - %(name)s - [PID: %(process)d] - %(levelname)s - %(message)s")
 # 设置日志格式
