@@ -24,6 +24,7 @@ class CustomConcurrentRotatingFileHandler(ConcurrentRotatingFileHandler):
         if not self.delay:
             self.stream = self._open()
 
+
 # 这是LogHandler的代码，用于将日志写入文件
 # 获取当前时间作为日志文件名的一部分
 current_time = time.strftime("%Y%m%d_%H%M%S")
@@ -56,7 +57,8 @@ debug_handler = ConcurrentRotatingFileHandler(os.path.join(debug_log_folder, "de
 process_type = 'MainProcess' if 'SANIC_WORKER_NAME' not in os.environ else os.environ['SANIC_WORKER_NAME']
 
 # 创建一个带有自定义字段的格式器
-formatter = logging.Formatter(f"%(asctime)s - [PID: %(process)d][{process_type}] - [Function: %(funcName)s] - %(levelname)s - %(message)s")
+formatter = logging.Formatter(
+    f"%(asctime)s - [PID: %(process)d][{process_type}] - [Function: %(funcName)s] - %(filename)s - %(lineno)d - %(levelname)s - %(message)s")
 
 # formatter = logging.Formatter("%(asctime)s - %(name)s - [PID: %(process)d] - %(levelname)s - %(message)s")
 # 设置日志格式

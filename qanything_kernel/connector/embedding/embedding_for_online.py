@@ -75,6 +75,7 @@ class YouDaoEmbeddings:
         try:
             f = urllib.request.urlopen(req)
             js = json.loads(f.read().decode())
+            print(f'!!!!!!!!!!embedding response!!!!!!!!!!!!: {js}', flush=True)
             return js
         except Exception as e:
             print(f'embedding error: {traceback.format_exc()}, e: {str(e)}')
