@@ -85,6 +85,7 @@ def getInput(input):
 
 
 # https://ai.youdao.com/DOCSIRMA/html/aigc/api/embedding/index.html
+# https://github.com/youdao-zhiyun/aicloud-demo-python/blob/master/apidemo/TextEmbeddingDemo.py
 
 class YouDaoEmbeddings:
     model_name: str = "text-embedding-youdao-001"
@@ -150,7 +151,7 @@ class YouDaoEmbeddings:
         # 下面这样是不行的，如果queries是一个简单的字符串，可以正常工作，但是如果是一个列表，就会报错
         # todo：现在由2种方法解决这个问题，第一是继续使用网易的embedding，其次是使用其他厂商的embedding，例如阿里云的
         # todo: 如果使用阿里云的，那么维度是1536，而网易的是768，这个在设置zilliz的milvus的collection时需要注意适配
-        url = f'{url}?appKey={model_config.ONLINE_EMBED_APP_ID}&curtime={curtime}&salt={salt}&sign={sign}&signType=v3&q={queries}'
+        # url = f'{url}?appKey={model_config.ONLINE_EMBED_APP_ID}&curtime={curtime}&salt={salt}&sign={sign}&signType=v3&q={queries}'
         try:
             data = {'q': queries}
             addAuthParams(model_config.ONLINE_EMBED_APP_ID, model_config.ONLINE_EMBED_APP_KEY, data)
