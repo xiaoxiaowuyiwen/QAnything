@@ -122,8 +122,8 @@ class MilvusClient:
         if not top_k:
             top_k = self.top_k
         milvus_records = self.sess.search(data=embs, partition_names=self.kb_ids, anns_field="embedding",
-                                          param=self.search_params, limit=top_k,
-                                          output_fields=self.output_fields, expr=expr, timeout=client_timeout)
+                                          param=self.search_params, limit=top_k, output_fields=self.output_fields,
+                                          expr=expr, timeout=client_timeout)
         # debug_logger.info(milvus_records)
         return self.parse_batch_result(milvus_records)
 

@@ -151,9 +151,9 @@ class LocalDocQA:
         if not top_k:
             top_k = self.top_k
         source_documents = []
-        embs = self.embedder._get_len_safe_embeddings(queries)
+        embs = self.embedder._get_len_safe_embeddings(queries)  # 获取query的embedding
         t1 = time.time()
-        batch_result = milvus_kb.search_emb_async(embs=embs, top_k=top_k)
+        batch_result = milvus_kb.search_emb_async(embs=embs, top_k=top_k)  # 通过query的embedding在milvus中搜索
         t2 = time.time()
         debug_logger.info(f"milvus search time: {t2 - t1}")
         for query, query_docs in zip(queries, batch_result):

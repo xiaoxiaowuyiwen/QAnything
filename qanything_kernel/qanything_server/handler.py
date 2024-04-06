@@ -354,10 +354,9 @@ async def local_doc_chat(req: request):
             debug_logger.info("start generate answer")
 
             async def generate_answer(response):
-                debug_logger.info("start generate...")
+                debug_logger.info("now in generate_answer, start generate...")
                 for resp, next_history in local_doc_qa.get_knowledge_based_answer(
-                        query=question, milvus_kb=milvus_kb, chat_history=history, streaming=True, rerank=rerank
-                ):
+                        query=question, milvus_kb=milvus_kb, chat_history=history, streaming=True, rerank=rerank):
                     chunk_data = resp["result"]
                     if not chunk_data:
                         continue

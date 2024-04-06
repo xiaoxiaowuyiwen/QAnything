@@ -101,57 +101,9 @@ class YouDaoEmbeddings:
         pass
 
     def _get_embedding(self, queries):
-        # queries = '123'   # 如果传入的是一个字符串，可以正常工作
-        curtime = int(time.time())
-        salt = str(curtime)
-
-        '''
-        sign=sha256(应用ID+input+salt+curtime+应用密钥)；
-        其中，input的计算方式为：input=q前10个字符 + q长度 + q后10个字符（当q长度大于20）或 input=q字符串（当q长度小于等于20）；
-        传多个q时,需要拼接为一个字符串参与签名计算。例：第一个q=文本1,第二个q=文本2,则参与计算签名q=文本1文本2
-        '''
-
-        # 拼接多个q字符串
-        combined_q = ''.join(queries)
-
-        print(f'_get_embedding, queries length: {len(queries)}, combined_q length: {len(combined_q)}', flush=True)
-
-        # 计算input
-        if len(combined_q) > 20:
-            input_str = combined_q[:10] + str(len(combined_q)) + combined_q[-10:]
-        else:
-            input_str = combined_q
-
-        # 获取当前时间戳
-        cur_time = str(curtime)
-
-        # 拼接字符串并计算SHA256签名
-        sign_str = model_config.ONLINE_EMBED_APP_ID + input_str + salt + cur_time + model_config.ONLINE_EMBED_APP_KEY
-        sign = hashlib.sha256(sign_str.encode('utf-8')).hexdigest()
-        print(
-            f'app id: {model_config.ONLINE_EMBED_APP_ID}, app key: {model_config.ONLINE_EMBED_APP_KEY}, salt: {salt}, curtime: {cur_time}, sign: {sign}',
-            flush=True)
-
-        '''
-        data = {
-            'appKey': model_config.ONLINE_EMBED_APP_ID,
-            'curtime': curtime,
-            'q': queries,
-            'queries': queries,
-            'salt': salt,
-            'sign': sign,
-            'signType': 'v3',
-        }
-        '''
-        # print(f'data: {data}', flush=True)
         print('embedding data length:', sum(len(s) for s in queries), flush=True)
-        # headers = {"content-type": "application/json"}
         headers = {'Content-Type': 'application/x-www-form-urlencoded'}
         url = self.base_url
-        # 下面这样是不行的，如果queries是一个简单的字符串，可以正常工作，但是如果是一个列表，就会报错
-        # todo：现在由2种方法解决这个问题，第一是继续使用网易的embedding，其次是使用其他厂商的embedding，例如阿里云的
-        # todo: 如果使用阿里云的，那么维度是1536，而网易的是768，这个在设置zilliz的milvus的collection时需要注意适配
-        # url = f'{url}?appKey={model_config.ONLINE_EMBED_APP_ID}&curtime={curtime}&salt={salt}&sign={sign}&signType=v3&q={queries}'
         try:
             data = {'q': queries}
             addAuthParams(model_config.ONLINE_EMBED_APP_ID, model_config.ONLINE_EMBED_APP_KEY, data)
@@ -163,22 +115,11 @@ class YouDaoEmbeddings:
             return None
 
     def getModelVersion(self):
-        data = ''
-        headers = {"content-type": "application/json"}
-
-        url = self.base_url + "/getModelVersion"
-        req = urllib.request.Request(
-            url=url,
-            headers=headers,
-            data=json.dumps(data).encode("utf-8")
-        )
-
-        f = urllib.request.urlopen(
-            req
-        )
-        js = json.loads(f.read().decode())
-
-        return js
+        data = {'q': ""}
+        addAuthParams(model_config.ONLINE_EMBED_APP_ID, model_config.ONLINE_EMBED_APP_KEY, data)
+        url = 'https://openapi.youdao.com/textEmbedding/queryTextEmbeddingVersion'
+        res = requests.get(url, data)
+        return str(res.content, 'utf-8')
 
     def _get_len_safe_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
@@ -210,4 +151,7 @@ class YouDaoEmbeddings:
 
     @property
     def embed_version(self):
-        return self.getModelVersion()['model_version']
+        model_version = self.getModelVersion()
+        print(f'!!!!!!model_version: {model_version}!!!!!!!!')
+        return model_version
+        # return model_version['model_version']
