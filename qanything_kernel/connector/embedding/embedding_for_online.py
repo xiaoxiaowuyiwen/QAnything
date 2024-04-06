@@ -1,9 +1,7 @@
 import concurrent.futures
 import hashlib
-import json
 import time
 import traceback
-import urllib.request
 import uuid
 from typing import (
     List,
@@ -119,7 +117,8 @@ class YouDaoEmbeddings:
         addAuthParams(model_config.ONLINE_EMBED_APP_ID, model_config.ONLINE_EMBED_APP_KEY, data)
         url = 'https://openapi.youdao.com/textEmbedding/queryTextEmbeddingVersion'
         res = requests.get(url, data)
-        return str(res.content, 'utf-8')
+        data_json = res.json()
+        return data_json.get('result', {}).get('modelVersion', '1')
 
     def _get_len_safe_embeddings(self, texts: List[str]) -> List[List[float]]:
         """
