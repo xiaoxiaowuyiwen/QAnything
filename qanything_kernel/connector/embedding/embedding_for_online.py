@@ -4,11 +4,84 @@ import json
 import time
 import traceback
 import urllib.request
+import uuid
 from typing import (
     List,
 )
 
+import requests
+
 from qanything_kernel.configs import model_config
+
+'''
+添加鉴权相关参数 -
+    appKey : 应用ID
+    salt : 随机值
+    curtime : 当前时间戳(秒)
+    signType : 签名版本
+    sign : 请求签名
+
+    @param appKey    您的应用ID
+    @param appSecret 您的应用密钥
+    @param paramsMap 请求参数表
+'''
+
+
+def addAuthParams(appKey, appSecret, params):
+    q = params.get('q')
+    if q is None:
+        q = params.get('img')
+    q = "".join(q)
+    salt = str(uuid.uuid1())
+    curtime = str(int(time.time()))
+    sign = calculateSign(appKey, appSecret, q, salt, curtime)
+    params['appKey'] = appKey
+    params['salt'] = salt
+    params['curtime'] = curtime
+    params['signType'] = 'v3'
+    params['sign'] = sign
+
+
+def returnAuthMap(appKey, appSecret, q):
+    salt = str(uuid.uuid1())
+    curtime = str(int(time.time()))
+    sign = calculateSign(appKey, appSecret, q, salt, curtime)
+    params = {'appKey': appKey,
+              'salt': salt,
+              'curtime': curtime,
+              'signType': 'v3',
+              'sign': sign}
+    return params
+
+
+'''
+    计算鉴权签名 -
+    计算方式 : sign = sha256(appKey + input(q) + salt + curtime + appSecret)
+    @param appKey    您的应用ID
+    @param appSecret 您的应用密钥
+    @param q         请求内容
+    @param salt      随机值
+    @param curtime   当前时间戳(秒)
+    @return 鉴权签名sign
+'''
+
+
+def calculateSign(appKey, appSecret, q, salt, curtime):
+    strSrc = appKey + getInput(q) + salt + curtime + appSecret
+    return encrypt(strSrc)
+
+
+def encrypt(strSrc):
+    hash_algorithm = hashlib.sha256()
+    hash_algorithm.update(strSrc.encode('utf-8'))
+    return hash_algorithm.hexdigest()
+
+
+def getInput(input):
+    if input is None:
+        return input
+    inputLen = len(input)
+    return input if inputLen <= 20 else input[0:10] + str(inputLen) + input[inputLen - 10:inputLen]
 
 
 # https://ai.youdao.com/DOCSIRMA/html/aigc/api/embedding/index.html
@@ -27,6 +100,7 @@ class YouDaoEmbeddings:
         pass
 
     def _get_embedding(self, queries):
+        # queries = '123'   # 如果传入的是一个字符串，可以正常工作
         curtime = int(time.time())
         salt = str(curtime)
 
@@ -57,6 +131,7 @@ class YouDaoEmbeddings:
             f'app id: {model_config.ONLINE_EMBED_APP_ID}, app key: {model_config.ONLINE_EMBED_APP_KEY}, salt: {salt}, curtime: {cur_time}, sign: {sign}',
             flush=True)
 
+        '''
         data = {
             'appKey': model_config.ONLINE_EMBED_APP_ID,
             'curtime': curtime,
@@ -66,17 +141,22 @@ class YouDaoEmbeddings:
             'sign': sign,
             'signType': 'v3',
         }
-        print(f'data: {data}', flush=True)
+        '''
+        # print(f'data: {data}', flush=True)
         print('embedding data length:', sum(len(s) for s in queries), flush=True)
-        headers = {"content-type": "application/json"}
+        # headers = {"content-type": "application/json"}
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
         url = self.base_url
+        # 下面这样是不行的，如果queries是一个简单的字符串，可以正常工作，但是如果是一个列表，就会报错
+        # todo：现在由2种方法解决这个问题，第一是继续使用网易的embedding，其次是使用其他厂商的embedding，例如阿里云的
+        # todo: 如果使用阿里云的，那么维度是1536，而网易的是768，这个在设置zilliz的milvus的collection时需要注意适配
         url = f'{url}?appKey={model_config.ONLINE_EMBED_APP_ID}&curtime={curtime}&salt={salt}&sign={sign}&signType=v3&q={queries}'
-        req = urllib.request.Request(url=url, headers=headers, data=json.dumps(data).encode("utf-8"))
         try:
-            f = urllib.request.urlopen(req)
-            js = json.loads(f.read().decode())
-            print(f'!!!!!!!!!!embedding response!!!!!!!!!!!!: {js}', flush=True)
-            return js
+            data = {'q': queries}
+            addAuthParams(model_config.ONLINE_EMBED_APP_ID, model_config.ONLINE_EMBED_APP_KEY, data)
+            res = requests.post(url, data, headers)
+            print(f'!!!!!!!!!!embedding response!!!!!!!!!!!!: {res.json()}', flush=True)
+            return res.json()
         except Exception as e:
             print(f'embedding error: {traceback.format_exc()}, e: {str(e)}')
             return None
@@ -117,8 +197,10 @@ class YouDaoEmbeddings:
             for future in futures:
                 embd_js = future.result()
                 if embd_js:
-                    embeddings = embd_js["embeddings"]
-                    model_version = embd_js["model_version"]
+                    # embeddings = embd_js["embeddings"]
+                    embeddings = embd_js["result"]["embeddingList"]
+                    # model_version = embd_js["model_version"]
+                    model_version = embd_js["result"]["modelVersion"]
                     print(model_version)
                     all_embeddings += embeddings
                 else:
