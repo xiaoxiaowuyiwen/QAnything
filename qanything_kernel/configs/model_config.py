@@ -99,3 +99,7 @@ LOCAL_EMBED_SERVICE_URL = f"localhost:{embed_port}"
 LOCAL_EMBED_MODEL_NAME = 'embed'
 LOCAL_EMBED_MAX_LENGTH = 512
 LOCAL_EMBED_BATCH = 16
+
+ONLINE_EMBED_SERVICE_URL = 'https://openapi.youdao.com/textEmbedding/queryTextEmbeddings'
+ONLINE_EMBED_APP_ID = os.getenv('ONLINE_EMBED_APP_ID')
+ONLINE_EMBED_APP_KEY = os.getenv('ONLINE_EMBED_APP_KEY')

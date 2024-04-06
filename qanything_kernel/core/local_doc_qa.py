@@ -49,7 +49,8 @@ class LocalDocQA:
 
     def init_cfg(self, mode='local'):
         self.mode = mode
-        self.embedder = YouDaoLocalEmbeddings()  # todo：此处需要处理一下，暂时无法部署本地模型，可以用YouDaoEmbeddings，线上接入
+        # self.embedder = YouDaoLocalEmbeddings()  # 此处需要处理一下，暂时无法部署本地模型，可以用YouDaoEmbeddings，线上接入
+        self.embedder = YouDaoEmbeddings()
         if self.mode == 'local':
             self.llm: ZiyueLLM = ZiyueLLM()  # todo：这里也需要处理一下，暂时无法部署本地模型
         else:
