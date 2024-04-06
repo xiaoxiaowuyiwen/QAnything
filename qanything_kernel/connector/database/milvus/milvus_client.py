@@ -95,6 +95,8 @@ class MilvusClient:
 
     def init(self):
         try:
+            # 这里需要改成serverless的连接方式，相关文档：
+            # https://github.com/zilliztech/cloud-vectordb-examples/blob/master/python/hello_zilliz_vectordb_serverless.py
             connections.connect(host=self.host, port=self.port, user=self.user,
                                 password=self.password, db_name=self.db_name)  # timeout=3 [cannot set]
             if utility.has_collection(self.user_id):

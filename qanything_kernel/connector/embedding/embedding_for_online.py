@@ -65,6 +65,7 @@ class YouDaoEmbeddings:
             'sign': sign,
             'signType': 'v3',
         }
+        print(f'data: {data}', flush=True)
         print('embedding data length:', sum(len(s) for s in queries), flush=True)
         headers = {"content-type": "application/json"}
         url = self.base_url
