@@ -1,14 +1,17 @@
-from abc import ABC
-import tiktoken
 import os
+from abc import ABC
+from typing import List
+
+import tiktoken
 from dotenv import load_dotenv
 from openai import OpenAI
-from typing import Optional, List
+
 from qanything_kernel.connector.llm.base import (BaseAnswer, AnswerResult)
 
 load_dotenv()
 
 
+# 直接调用OpenAI的API，不需要自己部署服务
 class OpenAILLM(BaseAnswer, ABC):
     model: str = "gpt-3.5-turbo"
     token_window: int = 4096

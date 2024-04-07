@@ -10,13 +10,13 @@ from dotenv import load_dotenv
 from langchain.llms.base import LLM
 from requests.exceptions import RequestException
 
-from qanything_kernel.connector.llm.base import (BaseAnswer,
-                                                 AnswerResult)
+from qanything_kernel.connector.llm.base import (BaseAnswer, AnswerResult)
 from qanything_kernel.utils.custom_log import debug_logger
 
 load_dotenv()
 
 
+# 暂时不知道36001是通过什么方式启动的
 class ZiyueLLM(BaseAnswer, LLM, ABC):
     model_name: str = "ZiyueLLM"
     model: str = "yd_gpt"
@@ -141,8 +141,8 @@ class ZiyueLLM(BaseAnswer, LLM, ABC):
             "top_k": self.top_k,
             "repetition_penalty": self.repetition_penalty,
             "check_in": self.check_in,
-            "stop": None}
-
+            "stop": None
+        }
         for res in self.retry_stream_requests(data_raw=data_raw, headers={"User-Agent": "fastchat Client"}):
             yield res
 

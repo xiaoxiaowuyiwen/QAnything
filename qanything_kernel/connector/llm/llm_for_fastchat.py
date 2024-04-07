@@ -1,24 +1,28 @@
+import json
+import logging
+import sys
 from abc import ABC
-import tiktoken
-import os
+from typing import List
+
+import requests
 from dotenv import load_dotenv
 from openai import OpenAI
-from typing import Optional, List
-import sys
-import json
-import requests
-import logging
+
 sys.path.append("../../../")
 from qanything_kernel.connector.llm.base import (BaseAnswer, AnswerResult)
-from qanything_kernel.configs.model_config import LOCAL_LLM_SERVICE_URL, LOCAL_LLM_MODEL_NAME, LOCAL_LLM_MAX_LENGTH
+from qanything_kernel.configs import model_config
 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 
+
+# fast chat是自己部署了一个服务，然后用openai的接口协议，看起来也是自己部署了模型
+# fast chat还能集成huggingface的transformers或者vllm后端
+
 class OpenAICustomLLM(BaseAnswer, ABC):
-    model: str = LOCAL_LLM_MODEL_NAME
-    token_window: int = LOCAL_LLM_MAX_LENGTH
+    model: str = model_config.LOCAL_LLM_MODEL_NAME
+    token_window: int = model_config.LOCAL_LLM_MAX_LENGTH
     max_token: int = 512
     offcut_token: int = 50
     truncate_len: int = 50
@@ -30,11 +34,11 @@ class OpenAICustomLLM(BaseAnswer, ABC):
     def __init__(self):
         super().__init__()
         # self.client = OpenAI(base_url="http://localhost:7802/v1", api_key="EMPTY")
-        if LOCAL_LLM_SERVICE_URL.startswith("http://"):
-            base_url = f"{LOCAL_LLM_SERVICE_URL}/v1" 
+        if model_config.LOCAL_LLM_SERVICE_URL.startswith("http://"):
+            base_url = f"{model_config.LOCAL_LLM_SERVICE_URL}/v1"
         else:
-            base_url = f"http://{LOCAL_LLM_SERVICE_URL}/v1" 
-        self.client = OpenAI(base_url=base_url, api_key="EMPTY")
+            base_url = f"http://{model_config.LOCAL_LLM_SERVICE_URL}/v1"
+        self.client = OpenAI(base_url=base_url, api_key="EMPTY")  # 使用的本地服务的地址，复用的OpenAI的接口协议
 
     @property
     def _llm_type(self) -> str:
@@ -48,20 +52,17 @@ class OpenAICustomLLM(BaseAnswer, ABC):
         self.history_len = history_len
 
     def token_check(self, query: str) -> int:
-        
-        if LOCAL_LLM_SERVICE_URL.startswith("http://"):
-            base_url = f"{LOCAL_LLM_SERVICE_URL}/api/v1/token_check" 
+        if model_config.LOCAL_LLM_SERVICE_URL.startswith("http://"):
+            base_url = f"{model_config.LOCAL_LLM_SERVICE_URL}/api/v1/token_check"
         else:
-            base_url = f"http://{LOCAL_LLM_SERVICE_URL}/api/v1/token_check" 
+            base_url = f"http://{model_config.LOCAL_LLM_SERVICE_URL}/api/v1/token_check"
 
         headers = {"Content-Type": "application/json"}
-        
         response = requests.post(
-            base_url, 
-            data=json.dumps(
-                {'prompts': [{'model': self.model, 'prompt': query, 'max_tokens': self.max_token}]}
-            ),
-            headers=headers)
+            base_url,
+            data=json.dumps({'prompts': [{'model': self.model, 'prompt': query, 'max_tokens': self.max_token}]}),
+            headers=headers
+        )
 
         # {'prompts': [{'fits': True, 'tokenCount': 317, 'contextLength': 8192}]}
         result = response.json()
@@ -85,7 +86,7 @@ class OpenAICustomLLM(BaseAnswer, ABC):
             num_tokens += self.token_check(doc.page_content)
         return num_tokens
 
-    def _call(self, prompt: str, history: List[List[str]], streaming: bool=False) -> str:
+    def _call(self, prompt: str, history: List[List[str]], streaming: bool = False) -> str:
         messages = []
         for pair in history:
             question, answer = pair
@@ -95,7 +96,6 @@ class OpenAICustomLLM(BaseAnswer, ABC):
         logging.info(messages)
 
         try:
-
             if streaming:
                 response = self.client.chat.completions.create(
                     model=self.model,
@@ -115,7 +115,6 @@ class OpenAICustomLLM(BaseAnswer, ABC):
                         # logging.info(f"[debug] event_text = [{event_text}]")
                         delta = {'answer': event_text}
                         yield "data: " + json.dumps(delta, ensure_ascii=False)
-
             else:
                 response = self.client.chat.completions.create(
                     model=self.model,
@@ -125,7 +124,7 @@ class OpenAICustomLLM(BaseAnswer, ABC):
                     # temperature=self.temperature,
                     stop=[self.stop_words] if self.stop_words is not None else None,
                 )
-                
+
                 # logging.info(f"[debug] response.choices = [{response.choices}]")
                 event_text = response.choices[0].message.content if response.choices else ""
                 delta = {'answer': event_text}
@@ -140,27 +139,23 @@ class OpenAICustomLLM(BaseAnswer, ABC):
             # logging.info("[debug] try-finally")
             yield f"data: [DONE]\n\n"
 
-    def generatorAnswer(self, prompt: str,
-                        history: List[List[str]] = [],
-                        streaming: bool = False) -> AnswerResult:
-
+    def generatorAnswer(self, prompt: str, history: List[List[str]] = [], streaming: bool = False) -> AnswerResult:
         if history is None or len(history) == 0:
             history = [[]]
         logging.info(f"history_len: {self.history_len}")
         logging.info(f"prompt: {prompt}")
         logging.info(f"prompt tokens: {self.num_tokens_from_messages([prompt])}")
         logging.info(f"streaming: {streaming}")
-                
+
         response = self._call(prompt, history[:-1], streaming)
         complete_answer = ""
         for response_text in response:
-
             if response_text:
                 chunk_str = response_text[6:]
                 if not chunk_str.startswith("[DONE]"):
                     chunk_js = json.loads(chunk_str)
                     complete_answer += chunk_js["answer"]
-                    
+
             history[-1] = [prompt, complete_answer]
             answer_result = AnswerResult()
             answer_result.history = history
@@ -173,21 +168,20 @@ class OpenAICustomLLM(BaseAnswer, ABC):
 
 
 if __name__ == "__main__":
-
-    base_url = f"http://{LOCAL_LLM_SERVICE_URL}/api/v1/token_check" 
+    base_url = f"http://{model_config.LOCAL_LLM_SERVICE_URL}/api/v1/token_check"
     headers = {"Content-Type": "application/json"}
     query = "hello"
     response = requests.post(
-        base_url, 
+        base_url,
         data=json.dumps(
-            {'prompts': [{'model': LOCAL_LLM_MODEL_NAME, 'prompt': query, 'max_tokens': 512}]}
+            {'prompts': [{'model': model_config.LOCAL_LLM_MODEL_NAME, 'prompt': query, 'max_tokens': 512}]}
         ),
-        headers=headers)
+        headers=headers
+    )
 
     # {'prompts': [{'fits': True, 'tokenCount': 317, 'contextLength': 8192}]}
     result = response.json()
     logging.info(f"[debug] result = {result}")
-
 
     llm = OpenAICustomLLM()
     streaming = True
@@ -203,8 +197,8 @@ if __name__ == "__main__":
 你的回复："""
     final_result = ""
     for answer_result in llm.generatorAnswer(prompt=prompt,
-                                                      history=chat_history,
-                                                      streaming=streaming):
+                                             history=chat_history,
+                                             streaming=streaming):
         resp = answer_result.llm_output["answer"]
         if "DONE" not in resp:
             final_result += json.loads(resp[6:])["answer"]

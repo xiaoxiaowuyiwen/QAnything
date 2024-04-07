@@ -6,13 +6,13 @@ from typing import List
 import requests
 from langchain.schema import Document
 
+from connector.llm.llm_for_wenxin import WenxinLLM
 from qanything_kernel.configs.model_config import VECTOR_SEARCH_TOP_K, CHUNK_SIZE, VECTOR_SEARCH_SCORE_THRESHOLD, \
     PROMPT_TEMPLATE, STREAMING
 from qanything_kernel.connector.database.milvus.milvus_client import MilvusClient
 from qanything_kernel.connector.database.mysql.mysql_client import KnowledgeBaseManager
 from qanything_kernel.connector.embedding.embedding_for_local import YouDaoLocalEmbeddings
 from qanything_kernel.connector.embedding.embedding_for_online import YouDaoEmbeddings
-from qanything_kernel.connector.llm import OpenAILLM, ZiyueLLM
 from qanything_kernel.utils.custom_log import debug_logger
 from qanything_kernel.utils.general_utils import get_time
 from .local_file import LocalFile
@@ -51,10 +51,13 @@ class LocalDocQA:
         self.mode = mode
         # self.embedder = YouDaoLocalEmbeddings()  # 此处需要处理一下，暂时无法部署本地模型，可以用YouDaoEmbeddings，线上接入
         self.embedder = YouDaoEmbeddings()
+        '''
         if self.mode == 'local':
             self.llm: ZiyueLLM = ZiyueLLM()  # todo：这里也需要处理一下，暂时无法部署本地模型
         else:
             self.llm: OpenAILLM = OpenAILLM()  # todo: 暂时无法连接到OpenAI API
+        '''
+        self.llm = WenxinLLM()
         self.milvus_summary = KnowledgeBaseManager(self.mode)
 
     def create_milvus_collection(self, user_id, kb_id, kb_name):
@@ -213,6 +216,7 @@ class LocalDocQA:
         return prompt
 
     def _rerank_documents(self, query, source_documents):
+        return source_documents  # 暂时不使用rerank
         return self._rerank_documents_for_local(query, source_documents)
 
     def _rerank_documents_for_local(self, query, source_documents):

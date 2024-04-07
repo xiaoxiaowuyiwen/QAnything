@@ -106,3 +106,6 @@ LOCAL_EMBED_BATCH = 16
 ONLINE_EMBED_SERVICE_URL = 'https://openapi.youdao.com/textEmbedding/queryTextEmbeddings'
 ONLINE_EMBED_APP_ID = os.getenv('ONLINE_EMBED_APP_ID')
 ONLINE_EMBED_APP_KEY = os.getenv('ONLINE_EMBED_APP_KEY')
+
+WENXIN_CLIENT_ID = os.getenv('WENXIN_CLIENT_ID')
+WENXIN_CLIENT_SECRET = os.getenv('WENXIN_CLIENT_SECRET')
