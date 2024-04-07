@@ -6,13 +6,13 @@ from typing import List
 import requests
 from langchain.schema import Document
 
-from connector.llm.llm_for_wenxin import WenxinLLM
 from qanything_kernel.configs.model_config import VECTOR_SEARCH_TOP_K, CHUNK_SIZE, VECTOR_SEARCH_SCORE_THRESHOLD, \
     PROMPT_TEMPLATE, STREAMING
 from qanything_kernel.connector.database.milvus.milvus_client import MilvusClient
 from qanything_kernel.connector.database.mysql.mysql_client import KnowledgeBaseManager
 from qanything_kernel.connector.embedding.embedding_for_local import YouDaoLocalEmbeddings
 from qanything_kernel.connector.embedding.embedding_for_online import YouDaoEmbeddings
+from qanything_kernel.connector.llm.llm_for_wenxin import WenxinLLM
 from qanything_kernel.utils.custom_log import debug_logger
 from qanything_kernel.utils.general_utils import get_time
 from .local_file import LocalFile
